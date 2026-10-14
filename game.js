@@ -258,7 +258,11 @@ bgm.loop = true;
 bgm.volume = 0.2; // комфортная фоновая громкость
 
 function playMusic() {
-  if (Store.getMusic() && bgm.paused) {
+  if (!Store.getMusic()) return;
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  if (bgm.paused) {
     bgm.play().catch(() => {});
   }
 }
@@ -269,15 +273,24 @@ function stopMusic() {
 
 /* ---------- СОЧНЫЕ ЗВУКИ (WEB AUDIO СИНТЕЗАТОР) ---------- */
 let audioCtx = null;
+let audioReady = false;
+
 function armAudio() {
   if (!audioCtx) {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
   }
-  // Запускаем музыку при первом клике игрока:
-  playMusic();
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().then(() => { audioReady = true; playMusic(); }).catch(() => {});
+  } else if (audioCtx) {
+    audioReady = true;
+    playMusic();
+  }
 }
 
-document.addEventListener('pointerdown', armAudio, { once: true });
+// Слушаем все события — что-то да сработает первым
+document.addEventListener('pointerdown', armAudio, { once: false });
+document.addEventListener('touchstart', armAudio, { passive: true, once: false });
+document.addEventListener('click', armAudio, { once: false });
 
 // 🎈 СОЧНЫЙ ЛОПАЮЩИЙСЯ ШАРИК («ЧПОК»)
 function playPop() {
@@ -1484,6 +1497,9 @@ $('toggle-music').onclick = function() {
   Store.setMusic(!Store.getMusic());
   this.classList.toggle('on', Store.getMusic());
   if (Store.getMusic()) {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
     playMusic();
   } else {
     stopMusic();
@@ -1493,6 +1509,11 @@ $('toggle-music').onclick = function() {
 $('toggle-sound').onclick = function() {
   Store.setSound(!Store.getSound());
   this.classList.toggle('on', Store.getSound());
+  // Принудительно будим audioCtx, когда включаем звук
+  if (Store.getSound() && audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  if (Store.getSound()) playPop(); // тестовый звук
 };
 $('toggle-haptic').onclick = function() {
   Store.setHaptic(!Store.getHaptic());
