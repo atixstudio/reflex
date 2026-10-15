@@ -1,0 +1,7 @@
+name = "reflex-leaderboard"
+main = "src/index.js"
+compatibility_date = "2026-10-15"
+
+[[kv_namespaces]]
+binding = "SCORES"
+id = "c414a72b7d394743863f579a6c15b7f4"

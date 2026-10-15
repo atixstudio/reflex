@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Reflex</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/TONSolutions/telemetree-pixel@main/telemetree-pixel.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -275,8 +276,8 @@
   <div class="topbar">
     <button class="icon-btn" id="btn-lb-back">✕</button>
   </div>
-  <h2 class="lb-title">ВАШИ РЕКОРДЫ</h2>
-  <p class="lb-note">Лучшие забеги на этом устройстве</p>
+  <h2 class="lb-title" id="lb-title">ЛИДЕРБОРД</h2>
+  <p class="lb-note" id="lb-note">Лучшие игроки</p>
   <div class="shop-tabs" id="lb-tabs">
     <button class="shop-tab active" data-lb="blitz" type="button">БЛИЦ</button>
     <button class="shop-tab" data-lb="survival" type="button">ВЫЖИВАНИЕ</button>

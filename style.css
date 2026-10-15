@@ -678,6 +678,7 @@ body.shaking { animation: shake 160ms ease 1; }
 .lb-container { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; }
 .lb-item { background: #1E1E3A; border-radius: 18px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.06); gap: 12px; }
 .lb-item.best { border: 1.5px solid #00E5FF; background: #1a2244; }
+.lb-item.you { box-shadow: inset 3px 0 0 #FFD60A; }
 .lb-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .lb-meta { color: #8E8EA8; font-size: 12px; font-weight: 700; }
 .lb-empty { text-align: center; color: #8E8EA8; font-weight: 700; padding: 28px 12px; }

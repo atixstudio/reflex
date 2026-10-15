@@ -5,6 +5,30 @@
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 const TELEGRAM_APP_URL = 'https://t.me/ReflexTapBot';
+const LEADERBOARD_API = 'https://reflex-leaderboard.reflexgame.workers.dev';
+const TELEMETREE_PROJECT_ID = '';
+const TELEMETREE_API_KEY = '';
+let telemetreeBuilder = null;
+
+function initTelemetree() {
+  if (typeof telemetree !== 'function') return;
+  if (!TELEMETREE_PROJECT_ID || !TELEMETREE_API_KEY) return;
+  try {
+    telemetreeBuilder = telemetree({
+      projectId: TELEMETREE_PROJECT_ID,
+      apiKey: TELEMETREE_API_KEY,
+      appName: 'reflex',
+      isTelegramContext: !!(tg && tg.initData)
+    });
+  } catch (e) {}
+}
+
+function trackEvent(name, props) {
+  if (!telemetreeBuilder || typeof telemetreeBuilder.track !== 'function') return;
+  try { telemetreeBuilder.track(name, props || {}); } catch (e) {}
+}
+
+initTelemetree();
 const DAILY_TASKS = [
   // 0 - Воскресенье
   { id: 0, text: 'НАБЕРИ 100 В БЛИЦЕ', mode: 'blitz', kind: 'score', need: 100, reward: 500, check: G => G.mode === 'blitz' && G.score >= 100 },
@@ -536,6 +560,8 @@ const el = {
   runStats: $('run-stats'),
   pauseOverlay: $('pause-overlay'),
   lbList: $('lb-list'),
+  lbTitle: $('lb-title'),
+  lbNote: $('lb-note'),
   skinGrid: $('skin-grid'),
   boosterGrid: $('booster-grid'),
   shopCoins: $('shop-coins'),
@@ -1072,6 +1098,7 @@ function updateInGameBoostersState() {
 function startGame(mode) {
   G = newGameState(mode);
   G.running = true;
+  trackEvent('game_start', { mode: mode });
 
   el.playArea.innerHTML = '';
   if (el.pauseOverlay) el.pauseOverlay.classList.remove('open');
@@ -1154,14 +1181,14 @@ function endGame() {
 
   if (G.mode === 'blitz') {
     const best = Store.getBestBlitz();
-    if (G.score > best) { Store.setBestBlitz(G.score); isRecord = true; }
+    if (G.score > best) { Store.setBestBlitz(G.score); isRecord = true; submitScore('blitz', G.score); }
     coins = Math.floor(G.score / 2);
     el.finalScore.textContent = G.score;
     el.pointsLabel.textContent = 'ОЧКОВ В БЛИЦЕ';
   } else {
     const survivalSec = Math.floor(G.timeLeft);
     const best = Store.getBestSurvival();
-    if (survivalSec > best) { Store.setBestSurvival(survivalSec); isRecord = true; }
+    if (survivalSec > best) { Store.setBestSurvival(survivalSec); isRecord = true; submitScore('survival', survivalSec); }
     coins = Math.floor(G.score / 2);
     el.finalScore.textContent = survivalSec + 's';
     el.pointsLabel.textContent = 'ВРЕМЯ ВЫЖИВАНИЯ';
@@ -1218,6 +1245,12 @@ function endGame() {
   updateShareButtonUI();
   refreshMenu();
   showScreen('gameover');
+  trackEvent('game_end', {
+    mode: G.mode,
+    score: G.score,
+    time: Math.floor(G.timeLeft),
+    level: G.level
+  });
 }
 
 /* ---------- НАВИГАЦИЯ И МЕНЮ ---------- */
@@ -1292,11 +1325,46 @@ function refreshMenu() {
 }
 
 let lbMode = 'blitz';
-function renderLeaderboard() {
-  document.querySelectorAll('#lb-tabs .shop-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.lb === lbMode);
-  });
+let lbRequest = 0;
+let scoresSynced = false;
 
+function submitScore(mode, score) {
+  if (!LEADERBOARD_API || !tg || !tg.initData || !(score > 0)) return Promise.resolve();
+  return fetch(LEADERBOARD_API + '/score', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ initData: tg.initData, mode, score })
+  }).catch(() => {});
+}
+
+async function syncBestScores() {
+  if (scoresSynced || !LEADERBOARD_API || !tg || !tg.initData) return;
+  const jobs = [];
+  if (Store.getBestBlitz() > 0) jobs.push(submitScore('blitz', Store.getBestBlitz()));
+  if (Store.getBestSurvival() > 0) jobs.push(submitScore('survival', Store.getBestSurvival()));
+  if (!jobs.length) { scoresSynced = true; return; }
+  const results = await Promise.all(jobs);
+  if (results.every(res => res && res.ok)) scoresSynced = true;
+}
+
+function formatBoardScore(mode, score) {
+  return mode === 'survival' ? score + 'с' : String(score);
+}
+
+function boardRow(rank, name, score, you, best) {
+  const cls = 'lb-item' + (best ? ' best' : '') + (you ? ' you' : '');
+  const meta = you ? 'ВЫ · ' + esc(name) : esc(name);
+  const place = rank ? '#' + rank : '—';
+  return `<div class="${cls}"><span class="lb-main"><b>${place}</b><span class="lb-meta">${meta}</span></span><b>${formatBoardScore(lbMode, score)}</b></div>`;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderLocalLeaderboard() {
+  el.lbTitle.textContent = 'ВАШИ РЕКОРДЫ';
+  el.lbNote.textContent = 'Лучшие забеги на этом устройстве';
   const runs = Store.getRuns()
     .filter(run => run.mode === lbMode)
     .sort((a, b) => b.score - a.score || b.combo - a.combo)
@@ -1318,6 +1386,45 @@ function renderLeaderboard() {
       </div>
     `;
   }).join('');
+}
+
+async function renderLeaderboard() {
+  document.querySelectorAll('#lb-tabs .shop-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.lb === lbMode);
+  });
+  if (!LEADERBOARD_API) {
+    renderLocalLeaderboard();
+    return;
+  }
+
+  const req = ++lbRequest;
+  el.lbTitle.textContent = 'ЛИДЕРБОРД';
+  el.lbNote.textContent = lbMode === 'survival' ? 'Секунды выживания' : 'Очки блица';
+  el.lbList.innerHTML = '<div class="lb-empty">Загрузка…</div>';
+
+  try {
+    await syncBestScores();
+    const headers = {};
+    if (tg && tg.initData) headers['x-telegram-init-data'] = tg.initData;
+    const res = await fetch(LEADERBOARD_API + '/top?mode=' + lbMode, { headers });
+    if (!res.ok) throw new Error('top');
+    const data = await res.json();
+    if (req !== lbRequest) return;
+
+    const rows = Array.isArray(data.top) ? data.top : [];
+    if (!rows.length) {
+      el.lbList.innerHTML = '<div class="lb-empty">Пока никто не попал в таблицу</div>';
+      return;
+    }
+    let html = rows.map((row, idx) => boardRow(idx + 1, row.name, row.score, row.you, idx === 0)).join('');
+    if (data.me && !rows.some(row => row.you)) {
+      html += boardRow(data.me.rank, data.me.name, data.me.score, true, false);
+    }
+    el.lbList.innerHTML = html;
+  } catch (e) {
+    if (req !== lbRequest) return;
+    el.lbList.innerHTML = '<div class="lb-empty">Не удалось загрузить таблицу</div>';
+  }
 }
 
 let shopTab = 'boosters';
