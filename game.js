@@ -4,7 +4,7 @@
 'use strict';
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-const TELEGRAM_APP_URL = 'https://t.me/YourBotName/reflex';
+const TELEGRAM_APP_URL = 'https://t.me/ReflexTapBot';
 const DAILY_TASKS = [
   // 0 - Воскресенье
   { id: 0, text: 'НАБЕРИ 100 В БЛИЦЕ', mode: 'blitz', kind: 'score', need: 100, reward: 500, check: G => G.mode === 'blitz' && G.score >= 100 },
